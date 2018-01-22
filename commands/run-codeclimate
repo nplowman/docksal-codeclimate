@@ -1,0 +1,72 @@
+#!/bin/bash
+
+## Run codeclimate checks on your codebase.
+##
+## Usage: fin run-sniffers [--changed-only] [--compare-branch]
+##
+## --changed-only - Pass in this argument to check only files which have been modified on the current branch.
+## --compare-branch - The git branch to compare against. Defaults to 'develop' if omitted.
+##
+## Examples:
+##
+## fin run-sniffers
+## fin run-sniffers --changed-only
+## fin run-sniffers --changed-only --compare-branch=master
+
+# The folder you wish to place the report files from the sniffers.
+REPORTS_DIR=${PROJECT_ROOT}/.docksal/sniffer_reports
+
+COMPARE_BRANCH=develop
+CHANGED_FILES_ONLY=0
+FILE_NAME=codeclimate_report.html
+
+# Collect Option values.
+while :; do
+    case $1 in
+        --compare-branch)
+            if [ "$2" ]; then
+                COMPARE_BRANCH=$2
+                shift
+            else
+                die 'ERROR: "--file" requires a non-empty option argument.'
+            fi
+            ;;
+        --compare-branch=?*)
+            COMPARE_BRANCH=${1#*=} # Delete everything up to "=" and assign the remainder.
+            ;;
+        --compare-branch=)
+            die 'ERROR: "--file" requires a non-empty option argument.'
+            ;;
+        --changed-only)
+            CHANGED_FILES_ONLY=1
+          ;;
+        --)
+            shift
+            break
+            ;;
+        -?*)
+            printf 'WARN: Unknown option (ignored): %s\n' "$1" >&2
+            ;;
+        *)               # Default case: No more options, so break out of the loop.
+            break
+    esac
+
+    shift
+done
+
+
+if [ $CHANGED_FILES_ONLY -eq 1 ]
+then
+    # If checking only files changed on the current branch.
+    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    CHANGED_FILES=$(git diff --name-only $COMPARE_BRANCH..$CURRENT_BRANCH | tr '\n' ' ')
+    echo "Checking changed files for coding issues..."
+    fin codeclimate analyze -f html $CHANGED_FILES > ${REPORTS_DIR}/${FILE_NAME}
+else
+    # If checking all files...
+    echo "Checking ALL files for coding issues..."
+    fin codeclimate analyze -f html > ${REPORTS_DIR}/${FILE_NAME}
+fi
+
+echo "Finished running code sniffers."
+echo "Please check ${REPORTS_DIR}/${FILE_NAME} for report."
